@@ -1,245 +1,131 @@
 <!doctype html>
 <html lang="es">
-  <head>
-    <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover"
-    />
-    <meta name="theme-color" content="#14231F" />
-    <link rel="manifest" href="manifest.json" />
-    <link rel="icon" href="icon.svg" />
-    <title>Saldo</title>
-    <style>
-      :root {
-        --bg: #e9eeec;
-        --ink: #14231f;
-        --card: #fff;
-        --in: #1b7f5c;
-        --out: #b4372f;
-        --mute: #5b6b66;
-      }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --bg: #0e1815;
-          --ink: #e6efec;
-          --card: #16251f;
-          --mute: #8fa39c;
-          --in: #4cc08f;
-          --out: #f07b70;
-        }
-      }
-      * {
-        box-sizing: border-box;
-      }
-      html,
-      body {
-        height: 100%;
-        margin: 0;
-      }
-      body {
-        background: var(--bg);
-        color: var(--ink);
-        font-family:
-          system-ui,
-          -apple-system,
-          "Segoe UI",
-          Roboto,
-          sans-serif;
-        padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom);
-        display: flex;
-        flex-direction: column;
-        max-width: 480px;
-        margin: auto;
-      }
-      header {
-        padding: 28px 0 8px;
-        color: var(--mute);
-        font-size: 15px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-      button.link {
-        background: none;
-        border: 0;
-        color: var(--mute);
-        font: inherit;
-        text-decoration: underline;
-        padding: 8px 0;
-      }
-      .bal {
-        font-size: clamp(44px, 15vw, 68px);
-        font-weight: 700;
-        letter-spacing: -0.03em;
-        margin: 8px 0 28px;
-        font-variant-numeric: tabular-nums;
-      }
-      .bal.neg {
-        color: var(--out);
-      }
-      .panel {
-        background: var(--card);
-        border-radius: 20px;
-        padding: 20px;
-      }
-      label {
-        font-size: 14px;
-        color: var(--mute);
-      }
-      input {
-        width: 100%;
-        font: inherit;
-        font-size: 28px;
-        font-weight: 600;
-        padding: 12px 0;
-        border: 0;
-        border-bottom: 2px solid var(--mute);
-        background: none;
-        color: var(--ink);
-        outline: none;
-        margin-top: 4px;
-      }
-      input:focus-visible {
-        border-color: var(--ink);
-      }
-      .row {
-        display: flex;
-        gap: 12px;
-        margin-top: 20px;
-      }
-      .row button {
-        flex: 1;
-        font: inherit;
-        font-size: 18px;
-        font-weight: 600;
-        padding: 16px;
-        border: 0;
-        border-radius: 14px;
-        color: #fff;
-        cursor: pointer;
-      }
-      #gasto {
-        background: var(--out);
-      }
-      #ingreso {
-        background: var(--in);
-      }
-      .row button:active {
-        transform: scale(0.97);
-      }
-      #msg {
-        min-height: 24px;
-        margin-top: 14px;
-        font-size: 14px;
-        color: var(--mute);
-      }
-    </style>
-  </head>
-  <body>
-    <header>
-      <span>Saldo disponible</span
-      ><button class="link" id="reset">Cambiar saldo inicial</button>
-    </header>
-    <div class="bal" id="bal" aria-live="polite">$ 0,00</div>
-    <div class="panel">
-      <label for="monto">Monto</label>
-      <input
-        id="monto"
-        type="number"
-        inputmode="decimal"
-        min="0"
-        step="0.01"
-        placeholder="0,00"
-      />
-      <div class="row">
-        <button id="gasto">Gasté</button>
-        <button id="ingreso">Recibí</button>
-      </div>
-      <div id="msg"></div>
-    </div>
-    <script>
-      const KEY = "saldo_v1";
-      const fmt = new Intl.NumberFormat("es", {
-        style: "currency",
-        currency: "USD",
-        currencyDisplay: "narrowSymbol",
-      });
-      // Estado: dinero en centavos (enteros) para evitar errores de decimales.
-      // tx[] ya se guarda: base para historial y categorías (cat) a futuro.
-      let state = load();
-      function load() {
-        try {
-          const s = JSON.parse(localStorage.getItem(KEY));
-          if (s && s.v === 1) return s;
-        } catch (e) {}
-        return null;
-      }
-      function save() {
-        try {
-          localStorage.setItem(KEY, JSON.stringify(state));
-        } catch (e) {}
-      }
-      const $ = (id) => document.getElementById(id);
-      function toCents(v) {
-        return Math.round(parseFloat(String(v).replace(",", ".")) * 100);
-      }
-      function askInitial() {
-        const v = prompt("¿Con cuánto dinero empezás?", "0");
-        const c = toCents(v);
-        if (v === null || isNaN(c)) return !!state;
-        state = {
-          v: 1,
-          balance: c,
-          tx: [
-            {
-              id: Date.now(),
-              type: "init",
-              amount: c,
-              cat: null,
-              ts: Date.now(),
-            },
-          ],
-        };
-        save();
-        return true;
-      }
-      function render() {
-        const b = $("bal");
-        b.textContent = fmt.format(state.balance / 100);
-        b.classList.toggle("neg", state.balance < 0);
-      }
-      function apply(type) {
-        const c = toCents($("monto").value);
-        if (!(c > 0)) {
-          $("msg").textContent = "Ingresá un monto mayor a 0.";
-          return;
-        }
-        state.balance += type === "in" ? c : -c;
-        state.tx.push({
-          id: Date.now(),
-          type,
-          amount: c,
-          cat: null,
-          ts: Date.now(),
-        });
-        save();
-        render();
-        $("msg").textContent =
-          (type === "in" ? "Sumado: " : "Descontado: ") + fmt.format(c / 100);
-        $("monto").value = "";
-        $("monto").focus();
-      }
-      $("gasto").onclick = () => apply("out");
-      $("ingreso").onclick = () => apply("in");
-      $("reset").onclick = () => {
-        if (askInitial()) render();
-      };
-      if (!state) askInitial();
-      if (!state) state = { v: 1, balance: 0, tx: [] };
-      render();
-      if ("serviceWorker" in navigator)
-        navigator.serviceWorker.register("sw.js");
-    </script>
-  </body>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14231F">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<title>Saldo</title>
+<style>
+:root{--btn:#fff;--bg:#E9EEEC;--ink:#14231F;--card:#fff;--in:#1B7F5C;--out:#B4372F;--mute:#5B6B66}
+@media(prefers-color-scheme:dark){:root{--bg:#0E1815;--ink:#E6EFEC;--card:#16251F;--mute:#8FA39C;--in:#4CC08F;--out:#F07B70;--btn:#0E1815}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+padding:env(safe-area-inset-top) 20px env(safe-area-inset-bottom);display:flex;flex-direction:column;max-width:480px;margin:auto}
+header{padding:28px 0 8px;color:var(--mute);font-size:15px;display:flex;justify-content:space-between;align-items:center}
+button.link{background:none;border:0;color:var(--mute);font:inherit;text-decoration:underline;padding:8px 0}
+.bal{font-size:clamp(44px,15vw,68px);font-weight:700;letter-spacing:-.03em;margin:8px 0 28px;font-variant-numeric:tabular-nums}
+.bal.neg{color:var(--out)}
+.panel{background:var(--card);border-radius:20px;padding:20px}
+label{font-size:14px;color:var(--mute)}
+input{width:100%;font:inherit;font-size:28px;font-weight:600;padding:12px 0;border:0;border-bottom:2px solid var(--mute);background:none;color:var(--ink);outline:none;margin-top:4px}
+input:focus-visible{border-color:var(--ink)}
+.row{display:flex;gap:12px;margin-top:20px}
+.row button{flex:1;font:inherit;font-size:18px;font-weight:600;padding:16px;border:0;border-radius:14px;color:var(--btn);cursor:pointer}
+#gasto{background:var(--out)}#ingreso{background:var(--in)}
+.row button:active{transform:scale(.97)}
+h2{font-size:15px;font-weight:600;color:var(--mute);margin:24px 0 8px}
+#hist{list-style:none;margin:0;padding:0 0 24px;flex:1;overflow-y:auto}
+#hist li{display:flex;justify-content:space-between;align-items:baseline;padding:12px 0;border-bottom:1px solid color-mix(in srgb,var(--mute) 25%,transparent)}
+#hist .d{font-size:13px;color:var(--mute)}
+#hist .a{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
+#hist .in .a{color:var(--in)}#hist .out .a{color:var(--out)}
+#hist .r{display:flex;align-items:center;gap:4px}
+#hist .x{background:none;border:0;color:var(--mute);font:inherit;font-size:22px;line-height:1;width:44px;height:44px;margin:-10px -10px -10px 0;cursor:pointer;border-radius:50%}
+#hist .x:active{background:color-mix(in srgb,var(--mute) 20%,transparent)}
+#hist .empty{color:var(--mute);font-size:14px;border:0}
+#msg{min-height:24px;margin-top:14px;font-size:14px;color:var(--mute)}
+</style>
+</head>
+<body>
+<header><span>Saldo disponible</span><button class="link" id="reset">Cambiar saldo inicial</button></header>
+<div class="bal" id="bal" aria-live="polite">$ 0,00</div>
+<div class="panel">
+  <label for="monto">Monto</label>
+  <input id="monto" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0,00">
+  <div class="row">
+    <button id="gasto">Gasté</button>
+    <button id="ingreso">Recibí</button>
+  </div>
+  <div id="msg"></div>
+</div>
+<h2>Historial</h2>
+<ul id="hist"></ul>
+<script>
+const KEY="saldo_v1";
+const fmt=new Intl.NumberFormat("es-AR",{style:"currency",currency:"USD",currencyDisplay:"narrowSymbol"});
+// Estado: dinero en centavos (enteros) para evitar errores de decimales.
+// tx[] ya se guarda: base para historial y categorías (cat) a futuro.
+let state=load();
+function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.v===1&&Array.isArray(s.tx)&&Number.isSafeInteger(s.balance))return s}catch(e){}return null}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
+const $=id=>document.getElementById(id);
+function toCents(n){const c=Math.round(n*100);return Number.isSafeInteger(c)?c:NaN}
+// Texto escrito a mano (cuadros de diálogo): acepta "1.500,50", "1500,5" o "1500.50"
+function parseText(v){
+  let s=String(v).trim().replace(/[^\d.,-]/g,"");
+  if(s.includes(","))s=s.replace(/\./g,"").replace(",",".");
+  else if(/^-?\d{1,3}(\.\d{3})+$/.test(s))s=s.replace(/\./g,"");
+  return parseFloat(s);
+}
+const newId=()=>Date.now()+"-"+Math.random().toString(36).slice(2,6);
+function askInitial(){
+  const v=prompt(state?"Nuevo saldo inicial (esto borra el historial):":"¿Con cuánto dinero empezás?","0");
+  const c=toCents(parseText(v));
+  if(v===null||isNaN(c))return !!state;
+  state={v:1,balance:c,tx:[{id:newId(),type:"init",amount:c,cat:null,ts:Date.now()}]};
+  save();return true;
+}
+function renderHist(){
+  const ul=$("hist");ul.textContent="";
+  const list=state.tx.slice().reverse();
+  if(!list.length){const li=document.createElement("li");li.className="empty";li.textContent="Todavía no hay movimientos.";ul.append(li);return}
+  for(const t of list){
+    const li=document.createElement("li");li.className=t.type;
+    const d=document.createElement("span");d.className="d";
+    d.textContent=(t.type==="init"?"Saldo inicial · ":"")+new Date(t.ts).toLocaleString("es-AR",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
+    const a=document.createElement("span");a.className="a";
+    a.textContent=(t.type==="in"?"+ ":t.type==="out"?"− ":"")+fmt.format(t.amount/100);
+    const r=document.createElement("div");r.className="r";r.append(a);
+    if(t.type!=="init"){const e=document.createElement("button");e.className="x";e.textContent="✎";e.setAttribute("aria-label","Editar monto");e.onclick=()=>editTx(t.id);r.append(e);
+      const x=document.createElement("button");x.className="x";x.textContent="×";x.setAttribute("aria-label","Eliminar movimiento");x.onclick=()=>removeTx(t.id);r.append(x)}
+    li.append(d,r);ul.append(li);
+  }
+}
+function removeTx(id){
+  const t=state.tx.find(x=>x.id===id);if(!t)return;
+  if(!confirm((t.type==="in"?"Eliminar ingreso de ":"Eliminar gasto de ")+fmt.format(t.amount/100)+"?\nEl saldo se ajusta automáticamente."))return;
+  state.tx=state.tx.filter(x=>x.id!==id);
+  // El saldo se recalcula desde los movimientos: nunca queda desfasado.
+  recalc();save();render();$("msg").textContent="Movimiento eliminado.";
+}
+function recalc(){state.balance=state.tx.reduce((b,x)=>b+(x.type==="out"?-x.amount:x.amount),0)}
+function editTx(id){
+  const t=state.tx.find(x=>x.id===id);if(!t)return;
+  const v=prompt((t.type==="in"?"Corregir ingreso":"Corregir gasto")+" — nuevo monto:",(t.amount/100).toFixed(2).replace(".",","));
+  if(v===null)return;
+  const c=toCents(parseText(v));
+  if(!(c>0)){$("msg").textContent="El monto debe ser mayor a 0.";return}
+  t.amount=c;recalc();save();render();$("msg").textContent="Monto actualizado.";
+}
+function render(){const b=$("bal");b.textContent=fmt.format(state.balance/100);b.classList.toggle("neg",state.balance<0);renderHist()}
+function apply(type){
+  const c=toCents(parseFloat($("monto").value));
+  if(!(c>0)){$("msg").textContent="Ingresá un monto mayor a 0.";return}
+  state.tx.push({id:newId(),type,amount:c,cat:null,ts:Date.now()});
+  recalc();save();render();
+  $("msg").textContent=(type==="in"?"Sumado: ":"Descontado: ")+fmt.format(c/100);
+  $("monto").value="";$("monto").focus();
+}
+$("gasto").onclick=()=>apply("out");
+$("ingreso").onclick=()=>apply("in");
+$("reset").onclick=()=>{if(askInitial())render()};
+if(!state)askInitial();
+if(!state)state={v:1,balance:0,tx:[]};
+render();
+if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js");
+</script>
+</body>
 </html>
